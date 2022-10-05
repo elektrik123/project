@@ -1,21 +1,21 @@
 package ua.opu.shveda.databaseprocessor.view;
 
-import javafx.collections.FXCollections;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.HBox;
 import ua.opu.shveda.databaseprocessor.model.*;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.List;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.function.Function;
 
-import static ua.opu.shveda.databaseprocessor.persistance.WorkerRepository.*;
 
 public class Tables {
     private static class TableBuilder<T> {
-        private TableView<T> table;
+        private final TableView<T> table;
 
         public TableBuilder() {
             this.table = new TableView<>();
@@ -33,20 +33,35 @@ public class Tables {
         }
 
         TableBuilder<T> withIntCol(String name, String property) {
-            var col = new TableColumn<T, Integer>();
+            var col = new TableColumn<T, Integer>(name);
             col.setCellValueFactory(new PropertyValueFactory<>(property));
             table.getColumns().add(col);
             return this;
         }
 
-        TableBuilder<T> withWidth(int width) {
-            table.setPrefWidth(width);
+        TableBuilder<T> withObjectFieldCol(String name, Function<T, String> getter) {
+            var col = new TableColumn<T, String>(name);
+            col.setCellValueFactory(data -> new SimpleStringProperty(getter.apply(data.getValue())));
+            table.getColumns().add(col);
+            return this;
+        }
+
+        TableBuilder<T> withWidth() {
+            table.setPrefWidth(575);
             return this;
         }
 
         TableBuilder<T> withDateCol(String name, String property) {
-            var col = new TableColumn<T, Date>(name);
+            var col = new TableColumn<T, LocalDate>(name);
             col.setCellFactory(Tables::dateFormatFactory);
+            col.setCellValueFactory(new PropertyValueFactory<>(property));
+            table.getColumns().add(col);
+            return this;
+        }
+
+        TableBuilder<T> withTimeCol(String name, String property) {
+            var col = new TableColumn<T, LocalTime>(name);
+            col.setCellFactory(Tables::timeFormatFactory);
             col.setCellValueFactory(new PropertyValueFactory<>(property));
             table.getColumns().add(col);
             return this;
@@ -61,33 +76,6 @@ public class Tables {
         }
     }
 
-
-    public static TableView<WorkShift> workShiftTable() {
-        return new TableBuilder<WorkShift>()
-                .withIntCol("Ід", "id")
-                .withDateCol("Дата", "date")
-                .withStringCol("Д/Н", "daytime")
-                .build();
-    }
-
-    public static TitledPane brigadePane(Brigade brigade) {
-        HBox root = new HBox(10);
-        TitledPane pane = new TitledPane("Бригада №", root);
-        Label number = new Label(String.valueOf(brigade.id()));
-        pane.setGraphic(number);
-        pane.setContentDisplay(ContentDisplay.RIGHT);
-
-        var workers = workersTable();
-        workers.setItems(FXCollections.observableList(brigade.workers()));
-
-        var workShifts = workShiftTable();
-        workShifts.setItems(FXCollections.observableList(brigade.workShifts()));
-
-        root.getChildren().add(workers);
-        root.getChildren().add(workShifts);
-        return pane;
-    }
-
     public static TableView<User> usersTable() {
         return new TableBuilder<User>()
                 .withStringCol("Логін", "login")
@@ -98,20 +86,94 @@ public class Tables {
     public static TableView<Worker> workersTable() {
         return new TableBuilder<Worker>()
                 .withIntCol("Id", "id")
-                .withStringCol("Ім'я", "name")
+                .withStringCol("ПІБ", "pib")
                 .withStringCol("Адреса", "address")
                 .withStringCol("Телефон", "phone")
-                .withStringCol("Посада", "post")
-                .withWidth(575)
+                .withDateCol("Дата народження", "birthDate")
+                .withObjectFieldCol("Бригада", worker -> String.valueOf(worker.getBrigade().getId()))
+                .withStringCol("Спеціальність", "speciality")
+                .withWidth()
                 .build();
     }
 
-    private static <T> TableCell<T, Date> dateFormatFactory(TableColumn<T, Date> column) {
+    public static TableView<Brigade> brigadeTable() {
+        return new TableBuilder<Brigade>()
+                .withIntCol("Id", "id")
+                .withIntCol("Номер", "number")
+                .withObjectFieldCol("Бригада", brigade -> String.valueOf(brigade.getWorkShift().getId()))
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<Call> callTable() {
+        return new TableBuilder<Call>()
+                .withIntCol("Id", "id")
+                .withDateCol("Дата", "date")
+                .withTimeCol("Час", "time")
+                .withStringCol("Адреса", "address")
+                .withObjectFieldCol("Бригада", call -> String.valueOf(call.getBrigade().getId()))
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<Car> carTable() {
+        return new TableBuilder<Car>()
+                .withIntCol("Id", "id")
+                .withStringCol("Марка", "mark")
+                .withObjectFieldCol("Бригада", car -> String.valueOf(car.getBrigade().getId()))
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<Diagnose> diagnoseTable() {
+        return new TableBuilder<Diagnose>()
+                .withIntCol("Id", "id")
+                .withObjectFieldCol("Пацієнт", diagnose -> String.valueOf(diagnose.getPatient().getPib()))
+                .withStringCol("Назва", "name")
+                .withStringCol("Стан", "state")
+                .withObjectFieldCol("Лікар, що виніс", diagnose -> String.valueOf(diagnose.getWorker().getPib()))
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<Drug> drugTable() {
+        return new TableBuilder<Drug>()
+                .withIntCol("Id", "id")
+                .withStringCol("Назва", "name")
+                .withStringCol("Дозування", "dosage")
+                .withIntCol("Ціна", "price")
+                .withObjectFieldCol("Виклик", drug -> String.valueOf(drug.getCall().getId()))
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<Patient> patientTable() {
+        return new TableBuilder<Patient>()
+                .withIntCol("Id", "id")
+                .withStringCol("ПІБ", "pib")
+                .withStringCol("Стать", "sex")
+                .withDateCol("Дата народження", "birthDate")
+                .withStringCol("Телефон", "phone")
+                .withWidth()
+                .build();
+    }
+
+    public static TableView<WorkShift> workShiftTable() {
+        return new TableBuilder<WorkShift>()
+                .withIntCol("Id", "id")
+                .withTimeCol("Час початку", "startTime")
+                .withTimeCol("Час кінця", "endTime")
+                .withDateCol("Дата", "workDate")
+                .withWidth()
+                .build();
+    }
+
+    private static <T> TableCell<T, LocalDate> dateFormatFactory(TableColumn<T, LocalDate> column) {
         return new TableCell<>() {
-            private final SimpleDateFormat format = new SimpleDateFormat("dd.MM.yyyy");
+            private final DateTimeFormatter format = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
             @Override
-            protected void updateItem(Date item, boolean empty) {
+            protected void updateItem(LocalDate item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty) {
                     setText(null);
@@ -123,37 +185,21 @@ public class Tables {
         };
     }
 
-    public static TableView<AccidentRequest> accidentTable() {
-        TableView<AccidentRequest> table = new TableView<>();
-        var idCol = new TableColumn<AccidentRequest, Integer>("Id");
-        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        table.getColumns().add(idCol);
+    private static <T> TableCell<T, LocalTime> timeFormatFactory(TableColumn<T, LocalTime> column) {
+        return new TableCell<>() {
+            private final DateTimeFormatter format = DateTimeFormatter.ofPattern("hh:mm:ss");
 
-        var costCol = new TableColumn<AccidentRequest, Double>("Вартість");
-        costCol.setCellValueFactory(new PropertyValueFactory<>("cost"));
-        table.getColumns().add(costCol);
+            @Override
+            protected void updateItem(LocalTime item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setText(null);
+                } else {
+                    this.setText(format.format(item));
 
-        var bonusCol = new TableColumn<AccidentRequest, Double>("Премія");
-        bonusCol.setCellValueFactory(new PropertyValueFactory<>("bonus"));
-        table.getColumns().add(bonusCol);
-
-        var typeCol = new TableColumn<AccidentRequest, String>("Тип");
-        typeCol.setCellValueFactory(new PropertyValueFactory<>("typeName"));
-        table.getColumns().add(typeCol);
-
-        var requestedCol = new TableColumn<AccidentRequest, LocalDateTime>("Прийнято");
-        requestedCol.setCellFactory(Tables::dateTimeFormatFactory);
-        requestedCol.setCellValueFactory(new PropertyValueFactory<>("datetime"));
-        table.getColumns().add(requestedCol);
-
-        var completedCol = new TableColumn<AccidentRequest, LocalDateTime>("Виконано");
-        completedCol.setCellFactory(Tables::dateTimeFormatFactory);
-        completedCol.setCellValueFactory(new PropertyValueFactory<>("completed"));
-        table.getColumns().add(completedCol);
-
-        table.setPrefWidth(575);
-
-        return table;
+                }
+            }
+        };
     }
 
     private static <T> TableCell<T, LocalDateTime> dateTimeFormatFactory(TableColumn<T, LocalDateTime> column) {
@@ -173,14 +219,4 @@ public class Tables {
     }
 
 
-
-    public static TableView<WorkerBrigadeCnt> workerBrigadeCnt() {
-        return new TableBuilder<WorkerBrigadeCnt>()
-                .withStringCol("Ім'я", "name")
-                .withIntCol("Кількість бригад", "brigadesCnt")
-                .build();
-    }
-
-//    public static Node dispatcher() {
-//    }
 }

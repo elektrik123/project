@@ -1,39 +1,39 @@
 package ua.opu.shveda.databaseprocessor.persistance;
 
-import ua.opu.shveda.databaseprocessor.model.Brigade;
+import ua.opu.shveda.databaseprocessor.model.Car;
 import ua.opu.shveda.databaseprocessor.model.Mapper;
 
 import java.sql.*;
 import java.util.List;
 import java.util.Optional;
 
-public class BrigadeRepository extends RepositoryBase<Brigade> {
-    final WorkShiftRepository workShiftRepository = new WorkShiftRepository();
+public class CarRepository extends RepositoryBase<Car> {
+    final BrigadeRepository brigadeRepository = new BrigadeRepository();
 
-    final Mapper<Brigade> mapper = set -> new Brigade(
+    final Mapper<Car> mapper = set -> new Car(
             set.getInt("id"),
-            set.getInt("number"),
-            workShiftRepository.findById(set.getInt("work_shift_id")).orElse(null)
+            set.getString("mark"),
+            brigadeRepository.findById(set.getInt("brigade_id")).orElse(null)
     );
 
-    public static boolean brigadeExistsById(int id) {
+    public static boolean carExistsById(int id) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 Statement st = conn.createStatement()
         ) {
-            st.execute(String.format("SELECT * FROM main.BRIGADE WHERE id = %d", id));
+            st.execute(String.format("SELECT * FROM CAR WHERE id = %d", id));
             return st.getResultSet().next();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Optional<Brigade> findById(int id) {
+    public Optional<Car> findById(int id) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 PreparedStatement st = conn.prepareStatement(
                         "SELECT * " +
-                                "FROM BRIGADE " +
+                                "FROM CAR " +
                                 "WHERE id = ?;")
         ) {
             st.setInt(1, id);
@@ -46,23 +46,23 @@ public class BrigadeRepository extends RepositoryBase<Brigade> {
         }
     }
 
-    public List<Brigade> findAll() {
-        return executeList("SELECT * FROM BRIGADE", mapper);
+    public List<Car> findAll() {
+        return executeList("SELECT * FROM CAR", mapper);
     }
 
-    public void update(Brigade brigade) {
+    public void update(Car car) {
         executeUpdate(String.format("" +
-                "UPDATE BRIGADE " +
-                "SET number = %d, workShiftId = %d WHERE id = %d;",
-                brigade.getNumber(), brigade.getWorkShift().getId(), brigade.getId()
+                        "UPDATE CAR " +
+                        "SET mark = '%s', brigade_id = %d WHERE id = %d;",
+                car.getMark(), car.getBrigade().getId(), car.getId()
         ));
     }
 
-    public void insert(Brigade brigade) {
+    public void insert(Car car) {
         executeUpdate(String.format("" +
-                "INSERT INTO BRIGADE (number, work_shift_id) " +
-                "VALUES (%d, %d)",
-                brigade.getNumber(), brigade.getWorkShift().getId()
+                        "INSERT INTO CAR (mark, brigade_id) " +
+                        "VALUES ('%s', %d)",
+                car.getMark(), car.getBrigade().getId()
         ));
     }
 }

@@ -19,7 +19,7 @@ import java.io.IOException;
 
 public class DBPApp extends Application {
     @Override
-    public void start(Stage mainStage) throws IOException {
+    public void start(Stage mainStage) {
         Stage loginStage = new Stage();
 
         SimpleStringProperty login = new SimpleStringProperty("");

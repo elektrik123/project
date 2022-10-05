@@ -2,19 +2,18 @@ package ua.opu.shveda.databaseprocessor.model;
 
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.property.SimpleStringProperty;
 
-import java.util.Date;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 public class WorkShift {
-    SimpleIntegerProperty id;
-    SimpleObjectProperty<Date> date;
-    SimpleStringProperty daytime;
+    final SimpleIntegerProperty id;
+    final SimpleObjectProperty<LocalTime> startTime;
+    final SimpleObjectProperty<LocalTime> endTime;
+    final SimpleObjectProperty<LocalDate> workDate;
 
-    public WorkShift(int id, Date date, String daytime) {
-        this.id = new SimpleIntegerProperty(id);
-        this.date = new SimpleObjectProperty<>(date);
-        this.daytime = new SimpleStringProperty(daytime);
+    public WorkShift() {
+        this(0, null, null, null);
     }
 
     public int getId() {
@@ -29,27 +28,46 @@ public class WorkShift {
         this.id.set(id);
     }
 
-    public Date getDate() {
-        return date.get();
+    public LocalTime getStartTime() {
+        return startTime.get();
     }
 
-    public SimpleObjectProperty<Date> dateProperty() {
-        return date;
+    public SimpleObjectProperty<LocalTime> startTimeProperty() {
+        return startTime;
     }
 
-    public void setDate(Date date) {
-        this.date.set(date);
+    public void setStartTime(LocalTime startTime) {
+        this.startTime.set(startTime);
     }
 
-    public String getDaytime() {
-        return daytime.get();
+    public LocalTime getEndTime() {
+        return endTime.get();
     }
 
-    public SimpleStringProperty daytimeProperty() {
-        return daytime;
+    public SimpleObjectProperty<LocalTime> endTimeProperty() {
+        return endTime;
     }
 
-    public void setDaytime(String daytime) {
-        this.daytime.set(daytime);
+    public void setEndTime(LocalTime endTime) {
+        this.endTime.set(endTime);
+    }
+
+    public LocalDate getWorkDate() {
+        return workDate.get();
+    }
+
+    public SimpleObjectProperty<LocalDate> workDateProperty() {
+        return workDate;
+    }
+
+    public void setWorkDate(LocalDate workDate) {
+        this.workDate.set(workDate);
+    }
+
+    public WorkShift(int id, LocalTime startTime, LocalTime endTime, LocalDate workDate) {
+        this.id = new SimpleIntegerProperty(id);
+        this.startTime = new SimpleObjectProperty<>(startTime);
+        this.endTime = new SimpleObjectProperty<>(endTime);
+        this.workDate = new SimpleObjectProperty<>(workDate);
     }
 }

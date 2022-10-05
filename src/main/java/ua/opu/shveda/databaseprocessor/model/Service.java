@@ -1,11 +1,10 @@
 package ua.opu.shveda.databaseprocessor.model;
 
 
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import ua.opu.shveda.databaseprocessor.persistance.UserRepository;
 import ua.opu.shveda.databaseprocessor.persistance.WorkerRepository;
-
-import java.util.Optional;
 
 public class Service {
     private static Service instance;
@@ -26,30 +25,30 @@ public class Service {
 
 
     public ObservableList<Worker> getWorkers() {
-        return workerRepository.findAll();
+        return FXCollections.observableArrayList(workerRepository.findAll());
     }
 
     public void addWorker(Worker worker) {
-        workerRepository.create(worker);
+        workerRepository.insert(worker);
     }
 
     public ObservableList<User> getUsers() {
-        return userRepository.findAll();
+        return UserRepository.findAllObservable();
     }
 
     public User getUser(String  login) {
-        return userRepository.findByLogin(login);
+        return UserRepository.findByLogin(login);
     }
 
     public boolean authenticateUser(String login, String password) {
-        return userRepository.validate(login, password);
+        return UserRepository.validate(login, password);
     }
 
     public void addUser(User user) {
-        userRepository.create(user);
+        UserRepository.create(user);
     }
 
     public void updateAuth() {
-        userRepository.update(authentication);
+        UserRepository.updateUser(authentication);
     }
 }

@@ -5,9 +5,9 @@ import javafx.beans.property.SimpleStringProperty;
 public class User {
     public enum Role { ADMIN, USER, DISPATCHER, MANAGER }
 
-    public SimpleStringProperty login;
-    public SimpleStringProperty password;
-    public SimpleStringProperty role;
+    public final SimpleStringProperty login;
+    public final SimpleStringProperty password;
+    public final SimpleStringProperty role;
 
     public User(String login, String password, String role) {
         this.login = new SimpleStringProperty(login);

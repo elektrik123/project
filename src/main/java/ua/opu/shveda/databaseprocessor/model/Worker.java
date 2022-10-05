@@ -1,78 +1,44 @@
 package ua.opu.shveda.databaseprocessor.model;
 
-import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
 
-import java.util.Objects;
+import java.time.LocalDate;
 
-public final class Worker {
-    public enum Post {
-        LEADER("Бригадир"), ELECTRICIAN("Електрик"), ENGINEER("Інженер"), DRIVER("Водій"),
-        LOCKSMITH("Слюсар"), MECHANIC("Механік");
+public class Worker {
+    final SimpleIntegerProperty id;
+    final SimpleStringProperty pib;
+    final SimpleStringProperty phone;
+    final SimpleStringProperty address;
+    final SimpleObjectProperty<LocalDate> birthDate;
+    final SimpleObjectProperty<Brigade> brigade;
+    final SimpleStringProperty speciality;
 
-        Post(String s) {
-            this.s = s;
-        }
-
-        public final String s;
+    public Worker() {
+        this(0, null, null, null, null, null, null);
     }
-    SimpleIntegerProperty id;
-    SimpleStringProperty name;
-    SimpleStringProperty address;
-    SimpleStringProperty phone;
-    SimpleStringProperty post;
 
-    public Worker(
-            int id,
-            String name,
-            String address,
-            String phone,
-            String post
-    ) {
+    public Brigade getBrigade() {
+        return brigade.get();
+    }
+
+    public SimpleObjectProperty<Brigade> brigadeProperty() {
+        return brigade;
+    }
+
+    public void setBrigade(Brigade brigade) {
+        this.brigade.set(brigade);
+    }
+
+    public Worker(int id, String pib, String phone, String address, LocalDate birthDate, Brigade brigade, String speciality) {
         this.id = new SimpleIntegerProperty(id);
-        this.name = new SimpleStringProperty(name);
-        this.address = new SimpleStringProperty(address);
+        this.pib = new SimpleStringProperty(pib);
         this.phone = new SimpleStringProperty(phone);
-        this.post = new SimpleStringProperty(post);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (Worker) obj;
-        return this.id == that.id &&
-                Objects.equals(this.name, that.name) &&
-                Objects.equals(this.address, that.address) &&
-                Objects.equals(this.phone, that.phone) &&
-                Objects.equals(this.post, that.post);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, name, address, phone, post);
-    }
-
-    public void setId(int id) {
-        this.id.set(id);
-    }
-
-    public void setName(String name) {
-        this.name.set(name);
-    }
-
-    public void setAddress(String address) {
-        this.address.set(address);
-    }
-
-    public void setPhone(String phone) {
-        this.phone.set(phone);
-    }
-
-    public void setPost(String post) {
-        this.post.set(post);
+        this.address = new SimpleStringProperty(address);
+        this.birthDate = new SimpleObjectProperty<>(birthDate);
+        this.brigade = new SimpleObjectProperty<>(brigade);
+        this.speciality = new SimpleStringProperty(speciality);
     }
 
     public int getId() {
@@ -83,20 +49,20 @@ public final class Worker {
         return id;
     }
 
-    public String getName() {
-        return name.get();
+    public void setId(int id) {
+        this.id.set(id);
     }
 
-    public SimpleStringProperty nameProperty() {
-        return name;
+    public String getPib() {
+        return pib.get();
     }
 
-    public String getAddress() {
-        return address.get();
+    public SimpleStringProperty pibProperty() {
+        return pib;
     }
 
-    public SimpleStringProperty addressProperty() {
-        return address;
+    public void setPib(String pib) {
+        this.pib.set(pib);
     }
 
     public String getPhone() {
@@ -107,11 +73,43 @@ public final class Worker {
         return phone;
     }
 
-    public String getPost() {
-        return post.get();
+    public void setPhone(String phone) {
+        this.phone.set(phone);
     }
 
-    public SimpleStringProperty postProperty() {
-        return post;
+    public String getAddress() {
+        return address.get();
+    }
+
+    public SimpleStringProperty addressProperty() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address.set(address);
+    }
+
+    public LocalDate getBirthDate() {
+        return birthDate.get();
+    }
+
+    public SimpleObjectProperty<LocalDate> birthDateProperty() {
+        return birthDate;
+    }
+
+    public void setBirthDate(LocalDate birthDate) {
+        this.birthDate.set(birthDate);
+    }
+
+    public String getSpeciality() {
+        return speciality.get();
+    }
+
+    public SimpleStringProperty specialityProperty() {
+        return speciality;
+    }
+
+    public void setSpeciality(String speciality) {
+        this.speciality.set(speciality);
     }
 }

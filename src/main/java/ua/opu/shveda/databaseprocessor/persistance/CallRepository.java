@@ -1,38 +1,41 @@
 package ua.opu.shveda.databaseprocessor.persistance;
 
+import ua.opu.shveda.databaseprocessor.model.Call;
 import ua.opu.shveda.databaseprocessor.model.Mapper;
-import ua.opu.shveda.databaseprocessor.model.WorkShift;
 
 import java.sql.*;
 import java.util.List;
 import java.util.Optional;
 
-public class WorkShiftRepository extends RepositoryBase<WorkShift> {
-    final Mapper<WorkShift> mapper = set -> new WorkShift(
+public class CallRepository extends RepositoryBase<Call> {
+    final BrigadeRepository brigadeRepository = new BrigadeRepository();
+
+    final Mapper<Call> mapper = set -> new Call(
             set.getInt("id"),
-            set.getTime("start_time").toLocalTime(),
-            set.getTime("end_time").toLocalTime(),
-            set.getDate("work_date").toLocalDate()
+            set.getDate("_date").toLocalDate(),
+            set.getTime("_time").toLocalTime(),
+            set.getString("address"),
+            brigadeRepository.findById(set.getInt("brigade_id")).orElse(null)
     );
 
-    public static boolean workShiftExistsById(int id) {
+    public static boolean callExistsById(int id) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 Statement st = conn.createStatement()
         ) {
-            st.execute(String.format("SELECT * FROM WORK_SHIFT WHERE id = %d", id));
+            st.execute(String.format("SELECT * FROM CALL WHERE id = %d", id));
             return st.getResultSet().next();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Optional<WorkShift> findById(int id) {
+    public Optional<Call> findById(int id) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 PreparedStatement st = conn.prepareStatement(
                         "SELECT * " +
-                                "FROM WORK_SHIFT " +
+                                "FROM CALL " +
                                 "WHERE id = ?;")
         ) {
             st.setInt(1, id);
@@ -45,39 +48,41 @@ public class WorkShiftRepository extends RepositoryBase<WorkShift> {
         }
     }
 
-    public List<WorkShift> findAll() {
-        return executeList("SELECT * FROM WORK_SHIFT", mapper);
+    public List<Call> findAll() {
+        return executeList("SELECT * FROM CALL", mapper);
     }
 
-    public void update(WorkShift workShift) {
+    public void update(Call call) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 PreparedStatement st = conn.prepareStatement(
-                        "UPDATE WORK_SHIFT " +
-                                "SET start_time = ?, end_time = ?, work_date = ? WHERE id = ?;"
+                                "UPDATE CALL " +
+                                "SET _date = ?, _time = ?, address = ?, brigade_id = ? WHERE id = ?;"
                         )
         ) {
-            st.setTime(1, Time.valueOf(workShift.getStartTime()));
-            st.setTime(2, Time.valueOf(workShift.getEndTime()));
-            st.setDate(3, Date.valueOf(workShift.getWorkDate()));
-            st.setInt(4, workShift.getId());
+            st.setDate(1, Date.valueOf(call.getDate()));
+            st.setTime(2, Time.valueOf(call.getTime()));
+            st.setString(3, call.getAddress());
+            st.setInt(4, call.getBrigade().getId());
+            st.setInt(4, call.getId());
             st.execute();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void insert(WorkShift workShift) {
+    public void insert(Call call) {
         try (
                 Connection conn = DriverManager.getConnection(dbPath);
                 PreparedStatement st = conn.prepareStatement(
-                        "INSERT INTO WORK_SHIFT (start_time, end_time, work_date) " +
-                                "VALUES (?, ?, ?)"
+                        "INSERT INTO CALL (_date, _time, address, brigade_id) " +
+                                "VALUES (?, ?, ?, ?)"
                 )
         ) {
-            st.setTime(1, Time.valueOf(workShift.getStartTime()));
-            st.setTime(2, Time.valueOf(workShift.getEndTime()));
-            st.setDate(3, Date.valueOf(workShift.getWorkDate()));
+            st.setDate(1, Date.valueOf(call.getDate()));
+            st.setTime(2, Time.valueOf(call.getTime()));
+            st.setString(3, call.getAddress());
+            st.setInt(4, call.getBrigade().getId());
             st.execute();
         } catch (SQLException e) {
             throw new RuntimeException(e);

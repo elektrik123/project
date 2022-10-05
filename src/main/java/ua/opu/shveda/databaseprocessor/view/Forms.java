@@ -4,13 +4,13 @@ import com.dlsc.formsfx.model.structure.Field;
 import com.dlsc.formsfx.model.structure.Form;
 import com.dlsc.formsfx.model.structure.Group;
 import com.dlsc.formsfx.model.structure.NodeElement;
-import com.dlsc.formsfx.model.validators.CustomValidator;
 import com.dlsc.formsfx.view.controls.SimpleComboBoxControl;
+import com.dlsc.formsfx.view.controls.SimpleDateControl;
+import com.dlsc.formsfx.view.controls.SimpleIntegerControl;
 import com.dlsc.formsfx.view.controls.SimpleTextControl;
 import com.dlsc.formsfx.view.renderer.FormRenderer;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
-import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -19,22 +19,25 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import ua.opu.shveda.databaseprocessor.DBPApp;
-import ua.opu.shveda.databaseprocessor.controller.form.WorkerForm;
 import ua.opu.shveda.databaseprocessor.model.*;
-import ua.opu.shveda.databaseprocessor.persistance.BrigadeRepository;
-import ua.opu.shveda.databaseprocessor.persistance.WorkShiftRepository;
-import ua.opu.shveda.databaseprocessor.persistance.WorkerRepository;
+import ua.opu.shveda.databaseprocessor.model.exception.BrigadeNotFoundException;
+import ua.opu.shveda.databaseprocessor.persistance.*;
 
-import java.io.IOException;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
+
+import static com.dlsc.formsfx.model.validators.CustomValidator.*;
 
 public class Forms {
+
+    static final BrigadeRepository brigadeRepository = new BrigadeRepository();
+    static final WorkShiftRepository workShiftRepository = new WorkShiftRepository();
+    static final WorkerRepository workerRepository = new WorkerRepository();
+    static final PatientRepository patientRepository = new PatientRepository();
+    static final CallRepository callRepository = new CallRepository();
 
     public static void editUser(User user) {
 
@@ -45,7 +48,7 @@ public class Forms {
         Form form = Form.of(
                 Group.of(
                         Field.ofStringType(newLogin).label("Новий логін")
-                                .validate(CustomValidator.forPredicate(s -> s.length() > 4, "Логін повинен бути більше 4 символів."))
+                                .validate(forPredicate(s -> s.length() > 4, "Логін повинен бути більше 4 символів."))
                                 .render(new SimpleTextControl()),
                         Field.ofSingleSelectionType(roles, role).label("Роль:")
                                 .render(new SimpleComboBoxControl<>())
@@ -109,7 +112,7 @@ public class Forms {
                                 .render(new SimpleTextControl()),
                         Field.ofStringType(newPassword).label("Новий пароль: ")
                                 .required("Ведіть пароль")
-                                .validate(CustomValidator.forPredicate(s -> s.length() > 8, "Пароль повинен бути довше 8 сиволів"))
+                                .validate(forPredicate(s -> s.length() > 8, "Пароль повинен бути довше 8 сиволів"))
                                 .render(new SimpleTextControl()),
                         NodeElement.of(buttonBox)
                 )
@@ -159,11 +162,11 @@ public class Forms {
                 Group.of(
                         Field.ofStringType(login).label("Логін: ")
                                 .required("Ведіть логін")
-                                .validate(CustomValidator.forPredicate(s -> s.length() > 4, "Логін повинен бути довше 4 сиволів"))
+                                .validate(forPredicate(s -> s.length() > 4, "Логін повинен бути довше 4 сиволів"))
                                 .render(new SimpleTextControl()),
                         Field.ofStringType(password).label("Пароль: ")
                                 .required("Ведіть пароль")
-                                .validate(CustomValidator.forPredicate(s -> s.length() > 8, "Пароль повинен бути довше 8 сиволів"))
+                                .validate(forPredicate(s -> s.length() > 8, "Пароль повинен бути довше 8 сиволів"))
                                 .render(new SimpleTextControl()),
                         Field.ofSingleSelectionType(roles, role).label("Роль:")
                                 .render(new SimpleComboBoxControl<>()),
@@ -183,14 +186,13 @@ public class Forms {
         return Optional.of(new User(login.get(), password.get(), role.get().toString()));
     }
 
-    public static void editWorker(Worker w) {
-        var name = new SimpleStringProperty(w.getName());
+    public static Optional<Worker> editWorker(Worker w) {
+        var name = new SimpleStringProperty(w.getPib());
         var address = new SimpleStringProperty(w.getAddress());
         var phone = new SimpleStringProperty(w.getPhone());
-        ObjectProperty<String> post = new SimpleObjectProperty<>(w.getPost());
-        ListProperty<String> posts = new SimpleListProperty<>(FXCollections.observableArrayList(Stream.of(Worker.Post.values())
-                                .map(p -> p.s)
-                                .toList()));
+        var birthDate = new SimpleObjectProperty<>(w.getBirthDate());
+        var brigadeId = new SimpleIntegerProperty(w.getBrigade() == null ? 0 : w.getBrigade().getId());
+        var speciality = new SimpleStringProperty(w.getSpeciality());
 
         Form form = Form.of(
                 Group.of(
@@ -201,43 +203,236 @@ public class Forms {
                                 .required("Введіть адресу")
                                 .render(new SimpleTextControl()),
                         Field.ofStringType(phone).label("Номер телефону")
-                                .validate(CustomValidator.forPredicate(p -> p.matches("\\d{10}"), "Телефон повинен складатися з десятьох цифр."))
+                                .validate(forPredicate(p -> p.matches("\\d{10}"), "Телефон повинен складатися з десятьох цифр."))
                                 .render(new SimpleTextControl()),
-                        Field.ofSingleSelectionType(posts, post).label("Посада")
-                                .render(new SimpleComboBoxControl<>())
+                        Field.ofDate(birthDate).label("Дата народження")
+                                .render(new SimpleDateControl()),
+                        Field.ofIntegerType(brigadeId).label("Ід бригади")
+                                        .validate(forPredicate(BrigadeRepository::brigadeExistsById, "Такої бригади не існує")),
+                        Field.ofStringType(speciality).label("Посада")
+                                .render(new SimpleTextControl())
+                )
+        );
+
+        if (processCA(form)) {
+            Worker worker = new Worker();
+            form.persist();
+            worker.setId(w.getId());
+            worker.setPib(name.get());
+            worker.setAddress(address.get());
+            worker.setBrigade(brigadeRepository.findById(brigadeId.get()).orElseThrow(BrigadeNotFoundException::new));
+            worker.setBirthDate(birthDate.get());
+            worker.setPhone(phone.get());
+            return Optional.of(worker);
+        }
+
+        return Optional.empty();
+    }
+
+
+    public static Optional<Worker> newWorker() {
+        return editWorker(new Worker());
+    }
+
+    public static Optional<Brigade> editBrigade(Brigade brigade) {
+        var ws_id = new SimpleIntegerProperty(brigade.getWorkShift() == null ? 0 : brigade.getWorkShift().getId());
+        Form form = Form.of(
+                Group.of(
+                        Field.ofIntegerType(brigade.numberProperty()).label("Номер:")
+                                .required("Введіть номер!")
+                                .render(new SimpleIntegerControl()),
+                        Field.ofIntegerType(ws_id).label("Ід зміни:")
+                                .required("Введіть ід зміни!")
+                                .validate(
+                                        forPredicate(
+                                                WorkShiftRepository::workShiftExistsById,
+                                                "Зміни з цим ід не існує"))
+                                .render(new SimpleIntegerControl())
                 )
         );
 
         if (processCA(form)) {
             form.persist();
-            w.setName(name.get());
-            w.setAddress(address.get());
-            w.setPhone(phone.get());
-            w.setPost(post.get());
+            brigade.setWorkShift(workShiftRepository.findById(ws_id.get()).orElseThrow());
+            return Optional.of(brigade);
         }
+        return Optional.empty();
     }
 
+    public static Optional<Call> editCall(Call call) {
+        var brigade_id = new SimpleIntegerProperty(call.getBrigade() == null ? 0 : call.getBrigade().getId());
+        var timeProperty = new SimpleStringProperty(
+                call.getTime() == null ? "" :
+                call.getTime().format(brigadeRepository.timeFormat));
+        Form form = Form.of(
+                Group.of(
+                        Field.ofDate(call.dateProperty()).label("Дата")
+                                .required("Виберіть дату")
+                                .render(new SimpleDateControl()),
+                        Field.ofStringType(timeProperty).label("Час")
+                                .required("Вкажіть час")
+                                .validate(forPredicate(time -> time.matches("\\d{2}:\\d{2}"),
+                                        "Введіть валідний час в форматі 'HH:MM' "
+                                ))
+                                .render(new SimpleTextControl()),
+                        Field.ofStringType(call.addressProperty()).label("Адреса")
+                                .required("Введіть адресу")
+                                .render(new SimpleTextControl()),
+                        Field.ofIntegerType(brigade_id).label("Ід бригади")
+                                .required("Введіть ід бригади")
+                                .render(new SimpleIntegerControl())
+                )
+        );
 
-    public static Optional<Worker> newWorker() {
-        Stage formStage = new Stage();
-
-        var loader = new FXMLLoader(DBPApp.class.getResource("worker-form.fxml"));
-        VBox formBox;
-        try {
-            formBox = loader.load();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (processCA(form)) {
+            form.persist();
+            call.setTime(LocalTime.parse(timeProperty.get()));
+            call.setBrigade(brigadeRepository.findById(brigade_id.get()).orElseThrow());
+            return Optional.of(call);
         }
-        var controller = (WorkerForm) loader.getController();
+        return Optional.empty();
+    }
 
-        controller.apply.setOnAction(e -> formStage.close());
-        controller.cancel.setOnAction(e -> formStage.close());
+    public static Optional<Car> editCar(Car car) {
+        var brigadeId = new SimpleIntegerProperty(car.getBrigade() == null ? 0 : car.getBrigade().getId());
 
-        formStage.setScene(new Scene(formBox));
-        formStage.setTitle("Новий робітник");
-        formStage.showAndWait();
+        Form form = Form.of(
+                Group.of(
+                        Field.ofStringType(car.markProperty()).label("Марка")
+                                .required("Введіть марку"),
+                        Field.ofIntegerType(brigadeId).label("Ід бригади")
+                                .required("Введіть ід бригади")
+                                .validate(forPredicate(BrigadeRepository::brigadeExistsById,
+                                        "Такої бригади нема"))
+                )
+        );
 
-        return Optional.ofNullable(controller.getWorker());
+        if (processCA(form)) {
+            form.persist();
+            car.setBrigade(brigadeRepository.findById(brigadeId.get()).orElseThrow());
+            return Optional.of(car);
+        }
+        return Optional.empty();
+    }
+
+    static final ListProperty<String> states = new SimpleListProperty<>(
+            FXCollections.observableArrayList("Легкий", "Тяжкий", "Критичний")
+    );
+
+    public static Optional<Diagnose> editDiagnose(Diagnose diagnose) {
+        var workerId = new SimpleIntegerProperty(diagnose.getWorker() == null ? 0 : diagnose.getWorker().getId());
+        var patientId = new SimpleIntegerProperty(diagnose.getPatient() == null ? 0 : diagnose.getPatient().getId());
+        var state = new SimpleObjectProperty<>(states.get(0));
+
+        Form form = Form.of(
+                Group.of(
+                        Field.ofStringType(diagnose.nameProperty()).label("Назва")
+                                .required("Введіть назву"),
+                        Field.ofSingleSelectionType(states, state).select(0).label("Стан"),
+                        Field.ofIntegerType(workerId).label("Ід лікаря")
+                                .required("Введіть ід лікаря")
+                                .render(new SimpleIntegerControl()),
+                        Field.ofIntegerType(patientId).label("Ід пацієнта")
+                                .required("Введіть ід пацієнта")
+                                .render(new SimpleIntegerControl())
+                )
+        );
+
+        if (processCA(form)) {
+            form.persist();
+            diagnose.setWorker(workerRepository.findById(workerId.get()).orElseThrow());
+            diagnose.setPatient(patientRepository.findById(patientId.get()).orElseThrow());
+            diagnose.setState(state.get());
+            return Optional.of(diagnose);
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Drug> editDrug(Drug drug) {
+        var call = new SimpleIntegerProperty(drug.getCall() == null ? 0 : drug.getCall().getId());
+        var price = new SimpleDoubleProperty(drug.priceProperty().doubleValue());
+
+        Form form = Form.of(
+                Group.of(
+                        Field.ofStringType(drug.nameProperty()).label("Назва")
+                                .required("Введіть назву"),
+                        Field.ofStringType(drug.dosageProperty()).label("Дозування")
+                                .required("Введіть інформацію про дозування"),
+                        Field.ofDoubleType(price).label("Ціна")
+                                .required("Вкажіть ціну"),
+                        Field.ofIntegerType(call).label("ІД виклику")
+                                .required("Вкажіть ід виклику")
+                                .validate(
+                                        forPredicate(CallRepository::callExistsById,
+                                        "Виклику з цим ід не існує"))
+                )
+        );
+        if (processCA(form)) {
+            form.persist();
+            drug.setPrice(price.floatValue());
+            drug.setCall(callRepository.findById(call.get()).orElseThrow());
+            return Optional.of(drug);
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Patient> editPatient(Patient patient) {
+        Form form = Form.of(
+                Group.of(
+                        Field.ofStringType(patient.pibProperty()).label("ПІБ")
+                                .required("Введіть піб"),
+                        Field.ofStringType(patient.sexProperty()).label("Стать")
+                                .required("Вкажіть стать")
+                                .validate(forPredicate(
+                                        sex -> sex.matches("[MW]"),
+                                        "Стать може бути чоловіча('M') або жіноча('W')")),
+                        Field.ofDate(patient.birthDateProperty()).label("Дата народження"),
+                        Field.ofStringType(patient.phoneProperty()).label("Номер телефону")
+                                .required("Вкажіть номер телефону")
+                                .validate(forPredicate(n -> n.length() >= 10, "телефон повиен містити >= 10"))
+                )
+        );
+
+        if (processCA(form)) {
+            form.persist();
+            return Optional.of(patient);
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<WorkShift> editWorkShift(WorkShift ws) {
+        var startTimeProperty = new SimpleStringProperty(
+                ws.getStartTime() == null ? "" :
+                ws.getStartTime().format(brigadeRepository.timeFormat));
+        var endTimeProperty = new SimpleStringProperty(
+                ws.getEndTime() == null ? "" :
+                ws.getEndTime().format(brigadeRepository.timeFormat));
+
+        Form form = Form.of(
+                Group.of(
+                        Field.ofStringType(startTimeProperty).label("Час початку")
+                                .required("Вкажіть час")
+                                .validate(forPredicate(time -> time.matches("\\d{2}:\\d{2}"),
+                                        "Введіть валідний час в форматі 'HH:MM' "
+                                ))
+                                .render(new SimpleTextControl()),
+                        Field.ofStringType(endTimeProperty).label("Час кінця")
+                                .required("Вкажіть час")
+                                .validate(forPredicate(time -> time.matches("\\d{2}:\\d{2}"),
+                                        "Введіть валідний час в форматі 'HH:MM' "
+                                ))
+                                .render(new SimpleTextControl()),
+                        Field.ofDate(ws.workDateProperty()).label("Дата")
+                )
+        );
+
+        if (processCA(form)) {
+            form.persist();
+            ws.setStartTime(LocalTime.parse(startTimeProperty.get()));
+            ws.setEndTime(LocalTime.parse(endTimeProperty.get()));
+            return Optional.of(ws);
+        }
+        return Optional.empty();
     }
 
     public static void searchAndSetControlsLabelWidth(Pane pane, double labelSize) {
@@ -265,22 +460,6 @@ public class Forms {
         }
     }
 
-    public static List<Integer> selectWorkers(List<Worker> notInBrigade) {
-        var table = Tables.workersTable();
-        table.setItems(FXCollections.observableList(notInBrigade));
-        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-
-        Form form = Form.of(
-                Group.of(NodeElement.of(table))
-        );
-
-        form.validProperty().set(true);
-
-        if (processCA(form)) {
-            return table.getSelectionModel().getSelectedItems().stream().map(Worker::getId).toList();
-        }
-        return Collections.emptyList();
-    }
 
     public static <T> List<T> select(TableView<T> table, List<T> content) {
         table.setItems(FXCollections.observableList(content));
@@ -309,99 +488,6 @@ public class Forms {
         return opt.get() == ButtonType.OK;
     }
 
-    public static void editBrigadeWorkShifts(Brigade brigade) {
-        Stage stage = new Stage();
-        AtomicBoolean applied = new AtomicBoolean(false);
-        Button addWorkShiftButton = new Button("Додати зміну");
-        List<WorkShift> toAdd = new ArrayList<>();
-        List<WorkShift> toRemove = new ArrayList<>();
-        Button removeShiftButton  = new Button("Видалити");
-
-        Button applyButton = new Button("Зберегти зміни");
-        Button cancelButton = new Button("Скасувати");
-
-        TableView<WorkShift> wst = Tables.workShiftTable();
-        wst.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        wst.setItems(FXCollections.observableList(brigade.workShifts()));
-
-        Form form = Form.of(
-                Group.of(
-                        NodeElement.of(wst),
-                        NodeElement.of(new HBox(40,
-                                new HBox(10, addWorkShiftButton, removeShiftButton),
-                                new HBox(10, applyButton, cancelButton)
-                        ))
-                )
-        );
-
-        addWorkShiftButton.setOnAction(e -> {
-            var selected = select(Tables.workShiftTable(), WorkShiftRepository.findNotInBrigade(brigade));
-            toAdd.addAll(selected);
-            wst.getItems().addAll(selected);
-        });
-
-        removeShiftButton.setOnAction(e -> {
-            if (wst.getSelectionModel().getSelectedItems().isEmpty()) return;
-            if (confirmation("Ви дійсно хочете прибрати вибрані зміни з бригади?")) {
-                toRemove.addAll(wst.getSelectionModel().getSelectedItems());
-                wst.getItems().removeAll(wst.getSelectionModel().getSelectedItems());
-            }
-        });
-
-        applyButton.setOnAction(e -> {applied.set(true); stage.close();});
-        cancelButton.setOnAction(e -> stage.close());
-
-        stage.setTitle("Зміни бригади №" + brigade.id());
-        stage.setScene(new Scene(new FormRenderer(form)));
-        stage.showAndWait();
-
-        if (applied.get()) {
-            BrigadeRepository.addWorkShifts(brigade, toAdd);
-            BrigadeRepository.removeWorkShifts(brigade, toRemove);
-        }
-    }
-
-    public static WorkShift selectWorkShift() {
-//        var date = new SimpleObjectProperty<>(LocalDate.of(2022, 6, 6));
-//        var daytime = new SimpleStringProperty("Денна");
-//
-//        Form form = Form.of(
-//                Group.of(
-//                        Field.ofDate(date).label("Дата: ")
-//                                .required("Виберіть дату")
-//                                .render(new SimpleDateControl()),
-//                        Field.ofSingleSelectionType(List.of("Денна", "Нічна")).label("Д/Н")
-//                                .render(new SimpleComboBoxControl<>())
-//                )
-//        );
-//
-//        if (processCA(form)) {
-//            return Optional.ofNullable(WorkShiftRepository.find(date.get(), daytime.get()));
-//        } else {
-//            return Optional.empty();
-//        }
-
-        return select(Tables.workShiftTable(), WorkShiftRepository.findAll()).get(0);
-    }
-
-    public static void st1() {
-        List<Brigade> list = BrigadeRepository.statement1();
-        VBox contentRoot = new VBox();
-        ScrollPane sp = new ScrollPane(contentRoot);
-
-        list.forEach(brigade -> contentRoot.getChildren().add(Tables.brigadePane(brigade)));
-        Form form = Form.of(
-                Group.of(
-                        NodeElement.of(sp)
-                )
-        );
-
-        Stage stage = new Stage();
-        stage.setScene(new Scene(new FormRenderer(form), 600, 500));
-        stage.showAndWait();
-
-    }
-
     public static void processInfoInForm(Parent content, String title) {
         Stage stage = new Stage();
         Form form = Form.of(
@@ -415,65 +501,6 @@ public class Forms {
         stage.showAndWait();
     }
 
-    public static void st2() {
-        TableView<WorkerRepository.WorkerBrigadeCnt> tw = Tables.workerBrigadeCnt();
-        tw.setItems(FXCollections.observableList(WorkerRepository.st2()));
-        processInfoInForm(tw, "Навантаження робітників");
-    }
-
     public record FormResponse<T>(boolean applied, T content) {}
 
-    public static void editBrigadeWorkers(Brigade brigade) {
-        Stage stage = new Stage();
-        AtomicBoolean applied = new AtomicBoolean(false);
-        Button addWorkerButton = new Button("Додати робітника");
-        List<Worker> toAdd = new ArrayList<>();
-        List<Worker> toRemove = new ArrayList<>();
-        Button removeWorkerButton = new Button("Видалити");
-
-        Button applyButton = new Button("Зберегти зміни");
-        Button cancelButton = new Button("Скасувати");
-        TableView<Worker> wt = Tables.workersTable();
-        wt.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        wt.setItems(FXCollections.observableList(WorkerRepository.findAllByBrigade(brigade.id())));
-
-        Form form = Form.of(
-                Group.of(
-                        NodeElement.of(wt),
-                        NodeElement.of(new HBox(40,
-                                new HBox(10, addWorkerButton, removeWorkerButton),
-                                new HBox(10, applyButton, cancelButton)
-                        ))
-                )
-        ).title("Працівник бригади №" + brigade.id());
-
-
-        addWorkerButton.setOnAction(e -> {
-            var notInBrigade = WorkerRepository.findAllByNotInBrigade(brigade.id());
-            var selected = select(Tables.workersTable(), notInBrigade);
-            wt.getItems().addAll(selected);
-            toAdd.addAll(selected);
-        });
-
-        removeWorkerButton.setOnAction(e -> {
-            if (wt.getSelectionModel().getSelectedItems().isEmpty()) return;
-            if (confirmation("Ви дійсно хочете прибрати вибраних працівників з бригади?")) {
-                toRemove.addAll(wt.getSelectionModel().getSelectedItems());
-                wt.getItems().removeAll(wt.getSelectionModel().getSelectedItems());
-            }
-        });
-
-        applyButton.setOnAction(e -> {applied.set(true); stage.close();});
-        cancelButton.setOnAction(e -> stage.close());
-
-
-        stage.setTitle(form.getTitle());
-        stage.setScene(new Scene(new FormRenderer(form)));
-        stage.showAndWait();
-
-        if (applied.get()) {
-            BrigadeRepository.addWorkers(brigade, toAdd);
-            BrigadeRepository.removeWorkers(brigade, toRemove);
-        }
-    }
 }

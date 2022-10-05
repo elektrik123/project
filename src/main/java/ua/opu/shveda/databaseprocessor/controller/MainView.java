@@ -1,38 +1,23 @@
 package ua.opu.shveda.databaseprocessor.controller;
 
-import com.dlsc.formsfx.model.structure.Field;
-import com.dlsc.formsfx.model.structure.Form;
-import com.dlsc.formsfx.model.structure.Group;
-import com.dlsc.formsfx.model.structure.NodeElement;
-import com.dlsc.formsfx.view.controls.SimpleComboBoxControl;
-import com.dlsc.formsfx.view.controls.SimpleTextControl;
-import com.dlsc.formsfx.view.renderer.FormRenderer;
-import javafx.beans.property.ListProperty;
-import javafx.beans.property.ObjectProperty;
-import javafx.beans.property.SimpleListProperty;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import ua.opu.shveda.databaseprocessor.DBPApp;
 import ua.opu.shveda.databaseprocessor.model.*;
-import ua.opu.shveda.databaseprocessor.persistance.BrigadeRepository;
-import ua.opu.shveda.databaseprocessor.persistance.UserRepository;
-import ua.opu.shveda.databaseprocessor.persistance.WorkerRepository;
-import ua.opu.shveda.databaseprocessor.view.Dispatcher;
+import ua.opu.shveda.databaseprocessor.persistance.*;
 import ua.opu.shveda.databaseprocessor.view.Forms;
-import ua.opu.shveda.databaseprocessor.view.Tables;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-import static ua.opu.shveda.databaseprocessor.view.Forms.*;
+import static ua.opu.shveda.databaseprocessor.view.Tables.*;
 
 public class MainView extends VBox {
 
@@ -44,8 +29,6 @@ public class MainView extends VBox {
     @FXML Button deleteWorkerButton;
     @FXML Button newUserButton;
     @FXML Button editUserButton;
-
-    @FXML Accordion brigadesAccordion;
     @FXML Button editBWorkersButton;
     @FXML Button editBWSsButton;
 
@@ -61,8 +44,8 @@ public class MainView extends VBox {
     @FXML Tab userTab;
     @FXML Tab dispatcherTab;
 
-    Stage thisStage;
-    Stage loginStage;
+    final Stage thisStage;
+    final Stage loginStage;
 
 
 
@@ -73,28 +56,156 @@ public class MainView extends VBox {
     @FXML MenuItem statement2;
 
     private final Service service = Service.getInstance();
+
+    //Table Containers
+    @FXML ScrollPane brigadeTableContainer;
+    @FXML ScrollPane callTableContainer;
+    @FXML ScrollPane carTableContainer;
+    @FXML ScrollPane diagnoseTableContainer;
+    @FXML ScrollPane drugTableContainer;
+    @FXML ScrollPane patientTableContainer;
+    @FXML ScrollPane workShiftTableContainer;
+
+    //EditButtons
+    @FXML Button editBrigadeButton;
+    @FXML Button editCallButton;
+    @FXML Button editCarButton;
+    @FXML Button editDiagnoseButton;
+    @FXML Button editDrugButton;
+    @FXML Button editPatientButton;
+    @FXML Button editWorkShiftButton;
+
+    //New buttons
+    @FXML Button newBrigadeButton;
+    @FXML Button newCallButton;
+    @FXML Button newCarButton;
+    @FXML Button newDiagnoseButton;
+    @FXML Button newDrugButton;
+    @FXML Button newPatientButton;
+    @FXML Button newWorkShiftButton;
+
+    //Tables
     private final TableView<Worker> workerTable;
     private final TableView<User> userTable;
+    private final TableView<Brigade> brigadeTable;
+    private final TableView<Call> callTable;
+    private final TableView<Car> carTable;
+    private final TableView<Diagnose> diagnoseTable;
+    private final TableView<Drug> drugTable;
+    private final TableView<Patient> patientTable;
     private final TableView<WorkShift> workShiftTable;
 
-    @FXML public void initialize() {
-        workerTableContainer.setContent(workerTable);
-        workerTable.setItems(service.getWorkers());
-        userTableContainer.setContent(userTable);
-        userTable.setItems(service.getUsers());
-        updateBrigades();
-        Dispatcher dispatcher = new Dispatcher();
-        dispatcherWorkSpace.setCenter(dispatcher);
-        workShiftsRoot.setContent(workShiftTable);
-        userTab.setDisable(!"ADMIN".equals(Service.getInstance().authentication.role.get()));
-        userTab.setDisable(!List.of("DISPATCHER", "ADMIN").contains(Service.getInstance().authentication.role.get()));
+    static Action updateAction;
 
-        newWorkerButton.setOnAction(e -> {
-            var worker = Forms.newWorker();
-            worker.ifPresent(w -> {
-                service.addWorker(w);
-                workerTable.setItems(service.getWorkers());
-            });
+
+    //Repositories
+    final WorkerRepository workerRepository = new WorkerRepository();
+    final BrigadeRepository brigadeRepository = new BrigadeRepository();
+    final CallRepository callRepository = new CallRepository();
+    final CarRepository carRepository = new CarRepository();
+    final DiagnoseRepository diagnoseRepository = new DiagnoseRepository();
+    final DrugRepository drugRepository = new DrugRepository();
+    final PatientRepository patientRepository = new PatientRepository();
+    final WorkShiftRepository workShiftRepository = new WorkShiftRepository();
+
+    @FXML public void initialize() {
+
+        initUser();
+
+        initWorker();
+
+        brigadeTableContainer.setContent(brigadeTable);
+        callTableContainer.setContent(callTable);
+        carTableContainer.setContent(carTable);
+        diagnoseTableContainer.setContent(diagnoseTable);
+        drugTableContainer.setContent(drugTable);
+        patientTableContainer.setContent(patientTable);
+        workShiftTableContainer.setContent(workShiftTable);
+
+        editBrigadeButton.setDisable(true);
+        brigadeTable.getSelectionModel().selectedItemProperty().addListener((observableValue, user, t1) ->
+                editBrigadeButton.setDisable(t1 == null));
+
+
+       setupButtons();
+        updateAction = this::updateTables;
+
+        updateTables();
+    }
+    private void setupButtons(){
+        initEditMechanicFor(
+                brigadeRepository, editBrigadeButton, newBrigadeButton,
+                Brigade::new, Forms::editBrigade, brigadeTable
+        );
+        initEditMechanicFor(
+                callRepository, editCallButton, newCallButton,
+                Call::new, Forms::editCall, callTable
+        );
+        initEditMechanicFor(
+                carRepository, editCarButton, newCarButton,
+                Car::new, Forms::editCar, carTable
+        );
+        initEditMechanicFor(
+                diagnoseRepository, editDiagnoseButton, newDiagnoseButton,
+                Diagnose::new, Forms::editDiagnose, diagnoseTable
+        );
+        initEditMechanicFor(
+                drugRepository, editDrugButton, newDrugButton,
+                Drug::new, Forms::editDrug, drugTable
+        );
+        initEditMechanicFor(
+                patientRepository, editPatientButton, newPatientButton,
+                Patient::new, Forms::editPatient, patientTable
+        );
+        initEditMechanicFor(
+                workShiftRepository, editWorkShiftButton, newWorkShiftButton,
+                WorkShift::new, Forms::editWorkShift, workShiftTable
+        );
+
+
+    }
+    static <T> void initEditMechanicFor(
+            Repository<T> repository,
+            Button editButton, Button newButton,
+            Supplier<T> constructor, Function<T, Optional<T>> form,
+            TableView<T> table
+    ) {
+        editButton.setDisable(true);
+        table.getSelectionModel().selectedItemProperty().addListener((observableValue, user, t1) ->
+                editButton.setDisable(t1 == null));
+
+        editButton.setOnAction(event -> {
+            var t = table.getSelectionModel().getSelectedItem();
+            var optional = form.apply(t);
+            optional.ifPresent(repository::update);
+        });
+
+        newButton.setOnAction(e -> {
+            form.apply(constructor.get()).ifPresent(repository::insert);
+            updateAction.execute();
+        });
+    }
+
+    void updateTables() {
+        brigadeTable.setItems(FXCollections.observableArrayList(brigadeRepository.findAll()));
+        callTable.setItems(FXCollections.observableArrayList(callRepository.findAll()));
+        carTable.setItems(FXCollections.observableArrayList(carRepository.findAll()));
+        diagnoseTable.setItems(FXCollections.observableArrayList(diagnoseRepository.findAll()));
+        drugTable.setItems(FXCollections.observableArrayList(drugRepository.findAll()));
+        patientTable.setItems(FXCollections.observableArrayList(patientRepository.findAll()));
+        workShiftTable.setItems(FXCollections.observableArrayList(workShiftRepository.findAll()));
+    }
+
+    private void initUser() {
+        userTable.setItems(service.getUsers());
+        userTableContainer.setContent(userTable);
+
+        editUserButton.setOnAction(e -> {
+            var user = userTable.getSelectionModel().getSelectedItem();
+            var oldLogin = user.getLogin();
+            Forms.editUser(user);
+            UserRepository.updateUser(user, oldLogin);
+            userTable.setItems(UserRepository.findAllObservable());
         });
 
         newUserButton.setOnAction(e -> {
@@ -104,18 +215,15 @@ public class MainView extends VBox {
                 userTable.setItems(service.getUsers());
             });
         });
+    }
 
-        changePass.setOnAction(e -> changePass());
+    private void initWorker() {
+        workerTable.setItems(service.getWorkers());
+        workerTableContainer.setContent(workerTable);
 
-        editUserButton.setDisable(true);
-        userTable.getSelectionModel().selectedItemProperty().addListener((observableValue, user, t1) ->
-                editUserButton.setDisable(t1 == null));
-        editUserButton.setOnAction(e -> {
-            var user = userTable.getSelectionModel().getSelectedItem();
-            var oldLogin = user.getLogin();
-            editUser(user);
-            UserRepository.update(user, oldLogin);
-            userTable.setItems(UserRepository.findAll());
+        newWorkerButton.setOnAction(event -> {
+            Optional<Worker> workerOptional = Forms.newWorker();
+            workerOptional.ifPresent(service::addWorker);
         });
 
         editWorkerButton.setDisable(true);
@@ -124,94 +232,22 @@ public class MainView extends VBox {
 
         editWorkerButton.setOnAction(e -> {
             var worker = workerTable.getSelectionModel().getSelectedItem();
-            editWorker(worker);
-            WorkerRepository.update(worker);
-            workerTable.setItems(WorkerRepository.findAll());
+            var workerOptional = Forms.editWorker(worker);
+            workerOptional.ifPresent(workerRepository::update);
+            workerTable.setItems(service.getWorkers());
         });
-
-        deleteWorkerButton.setOnAction(e -> {
-            var worker = workerTable.getSelectionModel().getSelectedItem();
-            if (Forms.confirmation("Ви певні що хочете видалити запис про робітника " + worker.getName() + "?")) WorkerRepository.delete(worker);
-            workerTable.setItems(WorkerRepository.findAll());
-        });
-
-        editBWorkersButton.setOnAction(e -> {
-            var number = Integer.parseInt(((Label) brigadesAccordion.getExpandedPane().getGraphic()).getText());
-            Brigade brigade = BrigadeRepository.findByNumber(number).orElseThrow(RuntimeException::new);
-            Forms.editBrigadeWorkers(brigade);
-            updateBrigades();
-        });
-
-        editBWSsButton.setOnAction(e -> {
-            var number  = Integer.parseInt(((Label) brigadesAccordion.getExpandedPane().getGraphic()).getText());
-            Brigade brigade = BrigadeRepository.findByNumber(number).orElseThrow();
-            Forms.editBrigadeWorkShifts(brigade);
-            updateBrigades();
-        });
-
-        editWorkShift.setOnAction(e -> {
-            var newWS = Forms.selectWorkShift();
-            dispatcher.setWorkShift(newWS);
-        });
-
-        exitFromSign.setOnAction(e -> {
-            thisStage.close();
-            loginStage.show();
-        });
-
-        statement1.setOnAction(e -> {
-            Forms.st1();
-        });
-
-        statement2.setOnAction(e -> Forms.st2());
-
-        initFilter();
-    }
-
-    private void updateBrigades() {
-        brigadesAccordion.getPanes().clear();
-        brigadesAccordion.getPanes().addAll(BrigadeRepository.findAll().stream().map(Tables::brigadePane).toList());
-    }
-
-    private void initFilter() {
-        Button filterWorker = new Button("Застосувати фільтр");
-        Button dropFilter = new Button("Скасувати фільтр");
-        Worker wf = new Worker(-1, "", "", "", "");
-
-        ObjectProperty<String> post = new SimpleObjectProperty<>("Бригадир");
-        var postStream = Stream.concat(Stream.of(Worker.Post.values())
-                .map(p -> p.s), Stream.of("Будь яка"));
-        ListProperty<String> posts = new SimpleListProperty<>(FXCollections.observableArrayList(postStream.toList()));
-
-        Form workerFilter =  Form.of(
-                Group.of(
-                        NodeElement.of(new Label("Фільтр")),
-                        Field.ofStringType(wf.nameProperty()).label("Повне ім'я:").render(new SimpleTextControl()),
-                        Field.ofStringType(wf.addressProperty()).label("Адресса:").render(new SimpleTextControl()),
-                        Field.ofStringType(wf.phoneProperty()).label("Номер телефону").render(new SimpleTextControl()),
-                        Field.ofSingleSelectionType(posts, post).label("Посада").render(new SimpleComboBoxControl<>()),
-                        NodeElement.of(new HBox(10, filterWorker, dropFilter))
-                )
-        );
-        var wfRenderer = new FormRenderer(workerFilter);
-        Forms.searchAndSetControlsLabelWidth(wfRenderer, 50);
-        workerWorkspace.setRight(wfRenderer);
-
-        filterWorker.setOnAction(e -> {
-            workerFilter.persist();
-            wf.setPost("Будь яка".equals(post.get()) ? "" : post.get());
-            List<Worker> list = WorkerRepository.findAllFilter(wf);
-            workerTable.setItems(FXCollections.observableList(list));
-        });
-
-        dropFilter.setOnAction(e -> workerTable.setItems(WorkerRepository.findAll()));
-
     }
 
     public MainView(Stage mainStage, Stage loginStage) throws IOException {
-        workerTable = Tables.workersTable();
-        userTable = Tables.usersTable();
-        workShiftTable = Tables.workShiftTable();
+        workerTable = workersTable();
+        userTable = usersTable();
+        brigadeTable = brigadeTable();
+        callTable = callTable();
+        carTable = carTable();
+        diagnoseTable = diagnoseTable();
+        drugTable = drugTable();
+        patientTable = patientTable();
+        workShiftTable = workShiftTable();
 
 
         thisStage = mainStage;
